@@ -12,7 +12,28 @@
 - Scape orchestrator: `/home/ben/dev/scape/agent/` (Servant + NATS patterns)
 - aweb Python server: `/home/ben/dev/aweb/server/src/aweb/` (API surface to replicate)
 - aweb Go CLI: `/home/ben/dev/aweb/cli/go/` (client to extend)
+- natskell library: `/home/ben/dev/natskell/` (NATS client — exports `Client`, `JetStream`, `JetStream.Types`, `Crypto.NKey`)
 - Design spec: `/home/ben/dev/aweb/docs/superpowers/specs/2026-05-16-haskell-nats-rewrite-design.md`
+
+**natskell integration:** Add as a source dependency in `hs/cabal.project`:
+```
+packages: .
+optional-packages: /home/ben/dev/natskell
+```
+Or in `flake.nix` via `hsPkgs.callCabal2nix "natskell" /home/ben/dev/natskell {}` as an overlay.
+
+---
+
+## Progress Summary (2026-05-16 session)
+
+**DONE:** Sections 1, 2, 3, 6, 7, 9 are fully complete. Sections 4 and 5 have all files created but handlers are stubs (return 501) and NATS modules don't connect to natskell yet. Section 8 has test scaffold but tests haven't been executed.
+
+**REMAINING:**
+1. Wire auth middleware + full routing into Service.hs (currently only /health is served)
+2. Wire handlers to DB queries (replace 501 stubs — Tasks 4.2-4.7)
+3. Connect natskell for real NATS operations (Task 5.1-5.4)
+4. Wire registry resolution into auth middleware (Task 3.2 partial)
+5. Execute and fix tests (Section 8)
 
 ---
 
