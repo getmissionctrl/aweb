@@ -24,7 +24,13 @@
       };
 
       # Haskell
-      hsPkgs = pkgs.haskell.packages.ghc910;
+      hsPkgs = pkgs.haskell.packages.ghc910.override {
+        overrides = hself: hsuper: {
+          hasql-pool = pkgs.haskell.lib.dontCheck hsuper.hasql-pool;
+          hasql-transaction = pkgs.haskell.lib.dontCheck hsuper.hasql-transaction;
+          rel8 = pkgs.haskell.lib.dontCheck hsuper.rel8;
+        };
+      };
       awebHsPkg = hsPkgs.callCabal2nix "aweb-hs" ./hs {};
 
       # Go CLI (aw)
