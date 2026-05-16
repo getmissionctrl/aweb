@@ -32,6 +32,7 @@
 
   # --- Networking (static IP on scape bridge) ---
   networking.useNetworkd = true;
+  networking.useDHCP = false;
 
   systemd.network.networks."10-eth" = {
     matchConfig.Name = "eth0";
