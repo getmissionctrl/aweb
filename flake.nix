@@ -23,6 +23,10 @@
         overlays = [ devshell.overlays.default ];
       };
 
+      # Haskell
+      hsPkgs = pkgs.haskell.packages.ghc910;
+      awebHsPkg = hsPkgs.callCabal2nix "aweb-hs" ./hs {};
+
       # Go CLI (aw)
       awPkg = pkgs.buildGoModule {
         pname = "aw";
@@ -147,6 +151,7 @@
         aw = awPkg;
         aweb = awebPkg;
         awid = awidPkg;
+        aweb-hs = awebHsPkg;
         channel = channelPkg;
         skills = skillsPkg;
         microvm = microvmConfig.config.microvm.declaredRunner;
@@ -212,6 +217,11 @@
           go
           gopls
           goreleaser
+
+          # Haskell
+          hsPkgs.ghc
+          cabal-install
+          haskell-language-server
 
           # Node/TypeScript
           nodejs_20
