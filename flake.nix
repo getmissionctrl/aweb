@@ -161,6 +161,11 @@
         services.aweb.awid.package = lib.mkDefault awidPkg;
       };
 
+      nixosModules.microvm = { lib, ... }: {
+        imports = [ ./nix/modules/microvm-host.nix ];
+        services.aweb-vm.package = lib.mkDefault microvmConfig.config.microvm.declaredRunner;
+      };
+
       checks.${system} = {
         # Verify each package actually runs
         aw-runs = pkgs.runCommand "aw-runs" {} ''
