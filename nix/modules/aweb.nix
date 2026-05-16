@@ -92,7 +92,7 @@ in
   config = lib.mkIf cfg.enable {
     systemd.services.awid = {
       description = "awid identity registry service";
-      after = [ "network.target" "postgresql.service" "redis.service" ];
+      after = [ "network.target" "postgresql.target" "redis.service" ];
       wantedBy = [ "multi-user.target" ];
 
       environment = {
@@ -120,7 +120,7 @@ in
 
     systemd.services.aweb = {
       description = "aweb coordination server";
-      after = [ "network.target" "awid.service" "postgresql.service" "redis.service" ];
+      after = [ "network.target" "awid.service" "postgresql.target" "redis.service" ];
       requires = [ "awid.service" ];
       wantedBy = [ "multi-user.target" ];
 
