@@ -8,9 +8,14 @@
       url = "github:numtide/devshell";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    microvm = {
+      url = "github:microvm-nix/microvm.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, devshell, ... }:
+  outputs = { self, nixpkgs, devshell, microvm, ... }:
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs {
