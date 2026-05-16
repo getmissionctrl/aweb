@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 module Aweb.API
   ( API
   , HealthStatus (..)
@@ -21,8 +22,13 @@ import Data.Text (Text)
 import Data.UUID (UUID)
 import GHC.Generics (Generic)
 import Servant
+import Servant.Server.Experimental.Auth (AuthServerData)
 
 import Aweb.API.Types
+import Aweb.Auth.Middleware (AuthIdentity)
+
+-- | Wire AuthProtect to produce AuthIdentity
+type instance AuthServerData (AuthProtect "did") = AuthIdentity
 
 -- ---------------------------------------------------------------------------
 -- Health
@@ -41,7 +47,7 @@ data HealthStatus = HealthStatus
 
 type API =
        "health" :> Get '[JSON] HealthStatus
-  :<|> ProtectedAPI
+  :<|> AuthProtect "did" :> ProtectedAPI
 
 type ProtectedAPI =
        "v1" :> "agents" :> AgentsAPI
