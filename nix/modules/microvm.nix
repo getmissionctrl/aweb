@@ -57,7 +57,7 @@
       host all all 127.0.0.1/32 trust
     '';
     settings = {
-      listen_addresses = "127.0.0.1";
+      listen_addresses = lib.mkForce "127.0.0.1";
       shared_buffers = "256MB";
       effective_cache_size = "512MB";
       max_connections = 100;

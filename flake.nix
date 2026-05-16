@@ -131,6 +131,16 @@
         meta.description = "aweb Claude channel MCP plugin";
       };
 
+      # MicroVM NixOS configuration
+      microvmConfig = nixpkgs.lib.nixosSystem {
+        inherit system;
+        modules = [
+          microvm.nixosModules.microvm
+          self.nixosModules.default
+          ./nix/modules/microvm.nix
+        ];
+      };
+
     in {
       packages.${system} = {
         default = awPkg;
@@ -139,7 +149,10 @@
         awid = awidPkg;
         channel = channelPkg;
         skills = skillsPkg;
+        microvm = microvmConfig.config.microvm.declaredRunner;
       };
+
+      nixosConfigurations.microvm = microvmConfig;
 
       # NixOS module (imports ./nix/modules when it exists)
       nixosModules.default = { lib, ... }: {
