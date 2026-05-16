@@ -25,24 +25,26 @@
       size = 4096; # 4 GB
       autoCreate = true;
     }];
-
-    # Also persist Redis appendonly data dir (optional, but cheap insurance)
-    # and /var/lib/aweb for any future state
   };
 
   # --- Networking (static IP on scape bridge) ---
-  networking.useNetworkd = true;
-  networking.useDHCP = false;
-
-  systemd.network.networks."10-eth" = {
-    matchConfig.Name = "eth0";
-    address = [ "10.99.0.2/24" ];
-    gateway = [ "10.99.0.1" ];
-    dns = [ "8.8.8.8" "8.8.4.4" ];
-    networkConfig.DHCP = "no";
+  networking = {
+    useNetworkd = true;
+    useDHCP = false;
+    usePredictableInterfaceNames = false;
+    firewall.enable = false;
   };
 
-  networking.firewall.enable = false;
+  systemd.network = {
+    enable = true;
+    networks."10-eth0" = {
+      matchConfig.Name = "eth0";
+      address = [ "10.99.0.2/24" ];
+      gateway = [ "10.99.0.1" ];
+      dns = [ "8.8.8.8" "8.8.4.4" ];
+      networkConfig.DHCP = "no";
+    };
+  };
 
   # --- PostgreSQL ---
   services.postgresql = {
@@ -96,9 +98,21 @@
     };
   };
 
+  # --- SSH for debugging ---
+  services.openssh = {
+    enable = true;
+    settings = {
+      PermitRootLogin = "yes";
+      PasswordAuthentication = false;
+    };
+  };
+  users.users.root.openssh.authorizedKeys.keys = [
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJI4iaVjJcoj4La4dcWYDRyjlyDADrL3kbZ9Eux6I6s2 ben@scape"
+  ];
+
   # --- Minimal system ---
   system.stateVersion = "24.11";
-  environment.systemPackages = [ pkgs.curl ];
+  environment.systemPackages = with pkgs; [ curl iproute2 ];
   users.users.root.password = "";
   services.getty.autologinUser = "root";
 }

@@ -129,12 +129,12 @@ in
         AWEB_REDIS_URL = cfg.server.redisUrl;
         AWEB_HOST = cfg.server.host;
         AWEB_PORT = toString cfg.server.port;
-        AWID_REGISTRY_URL = "http://${cfg.awid.host}:${toString cfg.awid.port}";
+        AWID_REGISTRY_URL = "http://127.0.0.1:${toString cfg.awid.port}";
         AWEB_LOG_JSON = "true";
       };
 
       serviceConfig = {
-        ExecStart = "${cfg.server.package}/bin/aweb";
+        ExecStart = "${cfg.server.package}/bin/aweb serve";
         DynamicUser = true;
         ProtectSystem = "strict";
         ProtectHome = true;
