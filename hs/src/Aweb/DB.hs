@@ -4,13 +4,11 @@ module Aweb.DB
   , runSession
   ) where
 
-import Data.ByteString.Char8 qualified as BS8
 import Data.Text (Text)
-import Data.Text qualified as Text
-import Hasql.Pool qualified as Pool
-import Hasql.Pool.Config qualified as Pool.Config
 import Hasql.Connection.Setting qualified as Connection.Setting
 import Hasql.Connection.Setting.Connection qualified as Connection
+import Hasql.Pool qualified as Pool
+import Hasql.Pool.Config qualified as Pool.Config
 import Hasql.Session (Session)
 
 type Pool = Pool.Pool

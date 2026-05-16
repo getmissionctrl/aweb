@@ -26,22 +26,48 @@ library
   hs-source-dirs: src
   exposed-modules:
     Aweb.API
+    Aweb.API.Types
+    Aweb.Auth.DID
+    Aweb.Auth.Middleware
+    Aweb.Auth.Registry
+    Aweb.Auth.Signing
     Aweb.Config
     Aweb.DB
     Aweb.DB.Schema
+    Aweb.Handlers.Agents
+    Aweb.Handlers.Claims
+    Aweb.Handlers.Conversations
+    Aweb.Handlers.Dashboard
+    Aweb.Handlers.Instructions
+    Aweb.Handlers.Messages
+    Aweb.Handlers.Repos
+    Aweb.Handlers.Reservations
+    Aweb.Handlers.Roles
+    Aweb.Handlers.Tasks
+    Aweb.Handlers.Workspaces
+    Aweb.Nats
+    Aweb.Nats.AuthCallout
+    Aweb.Nats.Presence
+    Aweb.Nats.Publish
+    Aweb.Nats.Subjects
+    Aweb.Nats.Subscriber
     Aweb.Service
   build-depends:
     base >= 4.18 && < 5,
     aeson >= 2.2,
+    base58-bytestring,
+    base64-bytestring,
     bytestring,
+    containers,
+    crypton,
     hasql >= 1.6,
     hasql-pool >= 1.0,
-    hasql-transaction >= 1.0,
+    http-client,
+    http-client-tls,
     http-types,
-    katip >= 0.8,
+    memory,
     optparse-applicative >= 0.18,
     rel8 >= 1.5,
-    servant >= 0.20,
     servant-server,
     stm,
     text,
@@ -54,8 +80,29 @@ executable aweb-hs
   import: shared
   hs-source-dirs: app
   main-is: Main.hs
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
     base,
     aweb-hs,
     optparse-applicative >= 0.18,
+    text
+
+test-suite aweb-hs-test
+  import: shared
+  type: exitcode-stdio-1.0
+  hs-source-dirs: test
+  main-is: Spec.hs
+  other-modules:
+    Aweb.Auth.DIDSpec
+    Aweb.Auth.SigningSpec
+    Aweb.API.HealthSpec
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+    base,
+    aweb-hs,
+    bytestring,
+    hspec,
+    hspec-discover,
+    hspec-wai,
+    hspec-wai-json,
     text

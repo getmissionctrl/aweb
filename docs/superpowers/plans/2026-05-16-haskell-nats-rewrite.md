@@ -20,7 +20,7 @@
 
 ### Task 1.1: Create Haskell project structure
 
-- [ ] Create `hs/` directory at repo root with cabal project:
+- [x] Create `hs/` directory at repo root with cabal project: (b83a982)
 
 **Files to create:**
 - `hs/aweb-hs.cabal`
@@ -181,19 +181,19 @@ server :: Server API
 server = pure HealthStatus { status = "ok", version = "0.1.0" }
 ```
 
-- [ ] Verify it builds: `cd hs && cabal build`
-- [ ] Verify it runs: `cabal run aweb-hs -- --port 8080` then `curl http://localhost:8080/health`
-- [ ] Commit: `git add hs/ && git commit -m "feat(hs): scaffold Haskell server with health endpoint"`
+- [x] Verify it builds: `nix build .#aweb-hs` (b83a982)
+- [x] Verify it runs: health endpoint returns `{"status":"ok","version":"0.1.0"}` (b83a982)
+- [x] Commit: `git commit -m "feat(hs): scaffold Haskell server with health endpoint and nix integration"` (b83a982)
 
 ### Task 1.2: Add to Nix flake
 
-- [ ] Add the Haskell package to `flake.nix`:
-  - Add `aweb-hs` as a cabal2nix package using the scape pattern
-  - Add to `packages.${system}`
-  - Add GHC + cabal + HLS to dev shell
+- [x] Add the Haskell package to `flake.nix`: (b83a982)
+  - Added `aweb-hs` as a cabal2nix package via `hsPkgs.callCabal2nix`
+  - Added to `packages.${system}`
+  - Added GHC 9.10 + cabal-install + HLS to dev shell
 
-- [ ] Verify: `nix build .#aweb-hs`
-- [ ] Commit: `git commit -m "nix: add aweb-hs Haskell package"`
+- [x] Verify: `nix build .#aweb-hs` (b83a982)
+- [x] Commit: combined with Task 1.1 commit (b83a982)
 
 ---
 
@@ -502,33 +502,28 @@ type ProtectedAPI =
 
 ### Task 7.1: Add NATS to process-compose
 
-- [ ] Modify `dev/process-compose.yaml`:
-  - Add `nats` process (nats-server with JetStream, port 4222, auth callout to localhost:8080)
-  - Add `aweb-hs` process (Haskell server on port 8080, depends on postgres, redis, nats)
-  - Keep existing `awid` and `aweb` (Python) processes for side-by-side testing
+- [x] Modify `dev/process-compose.yaml`: (0b0c5b0)
+  - Added `nats` process (nats-server with JetStream, port 4222, health at 8222)
+  - Added `aweb-hs` process (port 8080, depends on db-init, nats, awid)
+  - Existing `awid` and `aweb` (Python) processes remain unchanged
 
-- [ ] Add `nats-server` to Nix flake dev shell packages
-- [ ] Create `dev/nats-server.conf` — NATS config with:
+- [x] Add `nats-server` to Nix flake dev shell packages (0b0c5b0)
+- [x] Create `dev/nats-server.conf` — NATS config with: (0b0c5b0)
   - JetStream enabled, store in `.data/nats/`
   - Auth callout URL pointing to Haskell server
-  - Appropriate limits (max_payload, max_connections)
+  - 1MB max_payload, 256 max_connections
 
-- [ ] Commit: `git commit -m "feat(dev): add NATS server and Haskell server to process-compose"`
+- [x] Commit: (0b0c5b0)
 
 ### Task 7.2: NATS configuration documentation
 
-- [ ] Create `docs/nats-configuration.md`:
+- [x] Create `docs/nats-configuration.md`: (0b0c5b0)
   - Dev setup (process-compose, auth callout)
-  - Production setup for scape integration:
-    - Account creation for aweb
-    - Subject permissions
-    - JetStream stream definitions
-    - Auth callout registration
-    - Monitoring endpoints
-  - Example `nats-server.conf` (standalone)
-  - Example additions to scape's `nats.nix`
+  - Production setup for scape integration
+  - Subject namespace documentation
+  - Example standalone nats-server.conf
 
-- [ ] Commit: `git commit -m "docs: NATS configuration guide for dev and production"`
+- [x] Commit: combined with Task 7.1 (0b0c5b0)
 
 ---
 
@@ -575,18 +570,18 @@ type ProtectedAPI =
 
 ### Task 9.1: Haskell server NixOS module
 
-- [ ] Create `nix/modules/aweb-hs.nix`:
+- [x] Create `nix/modules/aweb-hs.nix`: (0b0c5b0)
   - `services.aweb.hs.enable`
   - `services.aweb.hs.package` (the Haskell binary)
   - `services.aweb.hs.port` (default 8080)
   - `services.aweb.hs.databaseUrl`
   - `services.aweb.hs.natsUrl`
   - `services.aweb.hs.awidUrl`
-  - systemd service with DynamicUser, ProtectSystem, NoNewPrivileges
+  - systemd service with DynamicUser, ProtectSystem, NoNewPrivileges, PrivateTmp
   - After: postgresql, nats, awid
 
-- [ ] Import from `nix/modules/default.nix`
-- [ ] Commit: `git commit -m "nix: add NixOS module for aweb-hs server"`
+- [x] Import from `nix/modules/default.nix` (0b0c5b0)
+- [x] Commit: combined with dev environment commit (0b0c5b0)
 
 ---
 
