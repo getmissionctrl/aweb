@@ -24,16 +24,22 @@ Or in `flake.nix` via `hsPkgs.callCabal2nix "natskell" /home/ben/dev/natskell {}
 
 ---
 
-## Progress Summary (2026-05-16 session)
+## Progress Summary (2026-05-16 session 2)
 
-**DONE:** Sections 1, 2, 3, 6, 7, 9 are fully complete. Sections 4 and 5 have all files created but handlers are stubs (return 501) and NATS modules don't connect to natskell yet. Section 8 has test scaffold but tests haven't been executed.
+**DONE:** Sections 1, 2, 3, 4, 6, 7, 9 are fully complete. Section 8 has conformance tests passing (auth verification works end-to-end). Section 5 has all files created but NATS modules don't connect to natskell yet.
+
+**Completed this session (842f8d2):**
+1. ✅ Wired auth middleware + full ProtectedAPI routing into Service.hs
+2. ✅ Implemented all 11 handler groups with real DB calls (Agents, Tasks, Workspaces, Messages, Conversations, Reservations, Roles, Instructions, Repos, Claims, Dashboard)
+3. ✅ Added DB helpers (runSelect/runInsert/runUpdate/runDelete) for rel8 1.7 API
+4. ✅ Conformance test verifies DID auth + endpoint routing
+5. ✅ All 34 modules compile cleanly via `nix build .#aweb-hs`
 
 **REMAINING:**
-1. Wire auth middleware + full routing into Service.hs (currently only /health is served)
-2. Wire handlers to DB queries (replace 501 stubs — Tasks 4.2-4.7)
-3. Connect natskell for real NATS operations (Task 5.1-5.4)
-4. Wire registry resolution into auth middleware (Task 3.2 partial)
-5. Execute and fix tests (Section 8)
+1. Connect natskell for real NATS operations (Task 5.1-5.4)
+2. Wire registry resolution into auth middleware (Task 3.2 partial)
+3. Run full endpoint tests with a live DB (Section 8.2-8.4)
+4. Python conformance test adapter for full test coverage (Section 8.3)
 
 ---
 
