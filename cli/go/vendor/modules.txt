@@ -59,9 +59,6 @@ github.com/dlclark/regexp2/syntax
 # github.com/gorilla/css v1.0.1
 ## explicit; go 1.20
 github.com/gorilla/css/scanner
-# github.com/gowebpki/jcs v1.0.1
-## explicit; go 1.15
-github.com/gowebpki/jcs
 # github.com/inconshreveable/mousetrap v1.1.0
 ## explicit; go 1.18
 github.com/inconshreveable/mousetrap
