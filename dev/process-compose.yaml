@@ -1,0 +1,114 @@
+version: "0.5"
+
+log_location: .data/dev.log
+
+processes:
+  postgres:
+    command: |
+      PGDATA="$(pwd)/.data/pg"
+      if [ ! -d "$PGDATA" ]; then
+        echo "Initializing PostgreSQL data directory..."
+        initdb -D "$PGDATA" --auth=trust --no-locale --encoding=UTF8
+        echo "port = 5433" >> "$PGDATA/postgresql.conf"
+        echo "unix_socket_directories = '$(pwd)/.data'" >> "$PGDATA/postgresql.conf"
+        echo "listen_addresses = '127.0.0.1'" >> "$PGDATA/postgresql.conf"
+      fi
+      exec postgres -D "$PGDATA"
+    readiness_probe:
+      exec:
+        command: pg_isready -h 127.0.0.1 -p 5433
+      initial_delay_seconds: 2
+      period_seconds: 2
+    shutdown:
+      signal: 2
+      timeout_seconds: 10
+
+  redis:
+    command: |
+      mkdir -p .data/redis
+      exec redis-server --port 6380 --dir .data/redis --daemonize no
+    readiness_probe:
+      exec:
+        command: redis-cli -p 6380 ping
+      initial_delay_seconds: 1
+      period_seconds: 2
+    shutdown:
+      signal: 15
+      timeout_seconds: 5
+
+  db-init:
+    command: |
+      until pg_isready -h 127.0.0.1 -p 5433; do sleep 0.5; done
+
+      # Create user and database if needed
+      psql -h 127.0.0.1 -p 5433 -U $(whoami) -tc "SELECT 1 FROM pg_roles WHERE rolname='aweb'" postgres \
+        | grep -q 1 \
+        || psql -h 127.0.0.1 -p 5433 -U $(whoami) -c "CREATE USER aweb WITH PASSWORD 'aweb';" postgres
+
+      psql -h 127.0.0.1 -p 5433 -U $(whoami) -tc "SELECT 1 FROM pg_database WHERE datname='aweb'" postgres \
+        | grep -q 1 \
+        || psql -h 127.0.0.1 -p 5433 -U $(whoami) -c "CREATE DATABASE aweb OWNER aweb;" postgres
+
+      # Create awid schema
+      PGPASSWORD=aweb psql -h 127.0.0.1 -p 5433 -U aweb -d aweb -c "CREATE SCHEMA IF NOT EXISTS awid;"
+
+      echo "Database ready."
+    depends_on:
+      postgres:
+        condition: process_healthy
+    availability:
+      restart: "no"
+
+  awid:
+    command: |
+      cd awid
+      exec uv run uvicorn awid_service.main:app --host 127.0.0.1 --port 8010 --reload
+    depends_on:
+      db-init:
+        condition: process_completed_successfully
+      redis:
+        condition: process_healthy
+    environment:
+      - "AWID_DATABASE_URL=postgresql://aweb:aweb@127.0.0.1:5433/aweb"
+      - "AWID_REDIS_URL=redis://127.0.0.1:6380/0"
+      - "AWID_HOST=127.0.0.1"
+      - "AWID_PORT=8010"
+      - "AWID_DB_SCHEMA=awid"
+      - "AWID_RATE_LIMIT_DISABLED=true"
+    readiness_probe:
+      http_get:
+        host: 127.0.0.1
+        port: 8010
+        path: /health
+      initial_delay_seconds: 3
+      period_seconds: 5
+    shutdown:
+      signal: 15
+      timeout_seconds: 10
+
+  aweb:
+    command: |
+      cd server
+      exec uv run uvicorn aweb.main:app --host 127.0.0.1 --port 8000 --reload
+    depends_on:
+      awid:
+        condition: process_healthy
+      redis:
+        condition: process_healthy
+    environment:
+      - "AWEB_DATABASE_URL=postgresql://aweb:aweb@127.0.0.1:5433/aweb"
+      - "AWEB_REDIS_URL=redis://127.0.0.1:6380/0"
+      - "AWEB_HOST=127.0.0.1"
+      - "AWEB_PORT=8000"
+      - "AWID_REGISTRY_URL=http://127.0.0.1:8010"
+      - "APP_ENV=development"
+    readiness_probe:
+      http_get:
+        host: 127.0.0.1
+        port: 8000
+        path: /health
+      initial_delay_seconds: 5
+      period_seconds: 5
+    shutdown:
+      signal: 15
+      timeout_seconds: 10
