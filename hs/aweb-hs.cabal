@@ -33,7 +33,14 @@ library
     Aweb.Auth.Signing
     Aweb.Config
     Aweb.DB
+    Aweb.DB.Agents
+    Aweb.DB.Messages
+    Aweb.DB.Repos
+    Aweb.DB.Reservations
     Aweb.DB.Schema
+    Aweb.DB.Tasks
+    Aweb.DB.TeamConfig
+    Aweb.DB.Workspaces
     Aweb.Handlers.Agents
     Aweb.Handlers.Claims
     Aweb.Handlers.Conversations
