@@ -112,3 +112,40 @@ processes:
     shutdown:
       signal: 15
       timeout_seconds: 10
+
+  nats:
+    command: |
+      mkdir -p .data/nats
+      exec nats-server -c dev/nats-server.conf
+    readiness_probe:
+      exec:
+        command: "curl -sf http://127.0.0.1:8222/healthz || exit 1"
+      initial_delay_seconds: 1
+      period_seconds: 2
+    shutdown:
+      signal: 15
+      timeout_seconds: 5
+
+  aweb-hs:
+    command: |
+      exec result/bin/aweb-hs --port 8080 \
+        --database-url "postgresql://aweb:aweb@127.0.0.1:5433/aweb" \
+        --nats-url "nats://127.0.0.1:4222" \
+        --awid-url "http://127.0.0.1:8010"
+    depends_on:
+      db-init:
+        condition: process_completed_successfully
+      nats:
+        condition: process_healthy
+      awid:
+        condition: process_healthy
+    readiness_probe:
+      http_get:
+        host: 127.0.0.1
+        port: 8080
+        path: /health
+      initial_delay_seconds: 2
+      period_seconds: 5
+    shutdown:
+      signal: 15
+      timeout_seconds: 10

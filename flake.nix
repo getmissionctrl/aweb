@@ -229,6 +229,7 @@
           # Services
           postgresql_16
           redis
+          nats-server
 
           # Tools
           process-compose

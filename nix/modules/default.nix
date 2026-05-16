@@ -6,5 +6,6 @@
 {
   imports = [
     ./aweb.nix
+    ./aweb-hs.nix
   ];
 }
