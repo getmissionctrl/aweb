@@ -1,20 +1,30 @@
 module Aweb.DB
   ( Pool
   , withPool
-  , runSession
+  , runDB
+  , runSelect
+  , runInsert
+  , runUpdate
+  , runDelete
+  , throwDB
   ) where
 
-import Data.Text (Text)
+import Data.ByteString.Lazy qualified as LBS
+import Data.Text (Text, pack)
+import Data.Text.Encoding qualified as TE
 import Hasql.Connection.Setting qualified as Connection.Setting
 import Hasql.Connection.Setting.Connection qualified as Connection
 import Hasql.Pool qualified as Pool
 import Hasql.Pool.Config qualified as Pool.Config
 import Hasql.Session (Session)
+import Hasql.Session qualified as Session
+import Rel8 (Delete, Insert, Query, Serializable, Table, Expr, Update)
+import Rel8 qualified
+import Servant (Handler, ServerError (..), err500, throwError)
 
 type Pool = Pool.Pool
 
 -- | Create a connection pool from a database URL and run an action with it.
--- The pool is released when the action completes.
 withPool :: Text -> (Pool -> IO a) -> IO a
 withPool dbUrl action = do
   pool <- Pool.acquire poolConfig
@@ -29,6 +39,28 @@ withPool dbUrl action = do
           ]
       ]
 
--- | Run a hasql session using a connection from the pool.
-runSession :: Pool -> Session a -> IO (Either Pool.UsageError a)
-runSession = Pool.use
+-- | Run a hasql Session using the pool. Left = DB error.
+runDB :: Pool -> Session a -> IO (Either Pool.UsageError a)
+runDB = Pool.use
+
+-- | Run a rel8 SELECT query.
+runSelect :: (Table Expr exprs, Serializable exprs a) => Pool -> Query exprs -> IO (Either Pool.UsageError [a])
+runSelect pool q = Pool.use pool (Session.statement () (Rel8.run (Rel8.select q)))
+
+-- | Run a rel8 INSERT (no returning).
+runInsert :: Pool -> Insert () -> IO (Either Pool.UsageError ())
+runInsert pool ins = Pool.use pool (Session.statement () (Rel8.run_ (Rel8.insert ins)))
+
+-- | Run a rel8 UPDATE (no returning).
+runUpdate :: Pool -> Update () -> IO (Either Pool.UsageError ())
+runUpdate pool upd = Pool.use pool (Session.statement () (Rel8.run_ (Rel8.update upd)))
+
+-- | Run a rel8 DELETE (no returning).
+runDelete :: Pool -> Delete () -> IO (Either Pool.UsageError ())
+runDelete pool del = Pool.use pool (Session.statement () (Rel8.run_ (Rel8.delete del)))
+
+-- | Convert a DB error to a Servant 500 error in Handler.
+throwDB :: Pool.UsageError -> Handler a
+throwDB err = throwError err500
+  { errBody = LBS.fromStrict (TE.encodeUtf8 (pack ("Database error: " <> show err)))
+  }
