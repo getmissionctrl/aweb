@@ -1,0 +1,54 @@
+cabal-version: 3.0
+name:          aweb-hs
+version:       0.1.0
+synopsis:      aweb coordination server (Haskell)
+license:       MIT
+build-type:    Simple
+
+common shared
+  default-language: GHC2021
+  default-extensions:
+    DataKinds
+    DeriveAnyClass
+    DeriveGeneric
+    DerivingStrategies
+    DuplicateRecordFields
+    LambdaCase
+    OverloadedRecordDot
+    OverloadedStrings
+    StrictData
+    TypeFamilies
+    TypeOperators
+  ghc-options: -Wall -Wunused-packages
+
+library
+  import: shared
+  hs-source-dirs: src
+  exposed-modules:
+    Aweb.API
+    Aweb.Config
+    Aweb.Service
+  build-depends:
+    base >= 4.18 && < 5,
+    aeson >= 2.2,
+    bytestring,
+    http-types,
+    katip >= 0.8,
+    optparse-applicative >= 0.18,
+    servant >= 0.20,
+    servant-server,
+    text,
+    time,
+    uuid,
+    wai,
+    warp
+
+executable aweb-hs
+  import: shared
+  hs-source-dirs: app
+  main-is: Main.hs
+  build-depends:
+    base,
+    aweb-hs,
+    optparse-applicative >= 0.18,
+    text
