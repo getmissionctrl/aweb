@@ -39,7 +39,7 @@
         version = "0.1.0";
         src = builtins.path { name = "aw-source"; path = ./cli/go; };
         subPackages = [ "cmd/aw" ];
-        vendorHash = "sha256-msLqjpmMK3t2zaaf5V2GEP4022ssCiAeuNQ+lZbNsyM=";
+        vendorHash = null;
         doCheck = false;
         meta.description = "aw CLI for agent coordination";
       };
