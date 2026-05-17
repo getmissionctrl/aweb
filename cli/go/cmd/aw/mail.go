@@ -10,6 +10,7 @@ import (
 	aweb "github.com/awebai/aw"
 	"github.com/awebai/aw/awconfig"
 	"github.com/awebai/aw/awid"
+	"github.com/awebai/aw/natstransport"
 	"github.com/spf13/cobra"
 )
 
@@ -485,16 +486,30 @@ var mailSendCmd = &cobra.Command{
 				return err
 			}
 		}
-		if targetKind == "alias" {
-			resp, err = c.SendMessage(ctx, req)
-		} else {
-			resp, err = c.SendMessageByIdentity(ctx, req)
-		}
-		if err != nil {
-			if targetKind == "conversation" {
-				return err
+		if nt := getNatsTransport(sel.TeamID, sel.Alias); nt != nil && targetKind == "alias" {
+			natsErr := nt.PublishMail(targetValue, &natstransport.MailMessage{
+				From:      sel.Alias,
+				To:        targetValue,
+				Subject:   mailSendSubject,
+				Body:      mailSendBody,
+				Timestamp: time.Now().UTC().Format(time.RFC3339),
+			})
+			if natsErr != nil {
+				return fmt.Errorf("nats mail: %w", natsErr)
 			}
-			return networkError(err, targetValue)
+			resp = &awid.SendMessageResponse{}
+		} else {
+			if targetKind == "alias" {
+				resp, err = c.SendMessage(ctx, req)
+			} else {
+				resp, err = c.SendMessageByIdentity(ctx, req)
+			}
+			if err != nil {
+				if targetKind == "conversation" {
+					return err
+				}
+				return networkError(err, targetValue)
+			}
 		}
 		logsDir := defaultLogsDir()
 		from := preferredIdentityDisplayLabel(

@@ -41,6 +41,19 @@
         "type": "github"
       }
     },
+    "natskell": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1777276342,
+        "narHash": "sha256-wpmth7FvF3bPkmttH8FNKYTmpUwYzPkeFJfDDURoVdc=",
+        "path": "/home/ben/dev/natskell",
+        "type": "path"
+      },
+      "original": {
+        "path": "/home/ben/dev/natskell",
+        "type": "path"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1778443072,
@@ -61,6 +74,7 @@
       "inputs": {
         "devshell": "devshell",
         "microvm": "microvm",
+        "natskell": "natskell",
         "nixpkgs": "nixpkgs"
       }
     },

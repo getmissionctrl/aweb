@@ -3,7 +3,7 @@ module Aweb.Handlers.Roles
   ) where
 
 import Control.Monad.IO.Class (liftIO)
-import Data.Aeson (Value, decode, encode)
+import Data.Aeson (Value (..), decode, encode)
 import Data.ByteString.Lazy qualified as LBS
 import Data.Int (Int32)
 import Data.Text (Text)
@@ -44,7 +44,7 @@ rolesServer pool identity =
     -- | Decode JSON text to Aeson Value.
     decodeJson :: Text -> Value
     decodeJson t = case decode (LBS.fromStrict (TE.encodeUtf8 t)) of
-      Nothing -> error "Invalid JSON in database"
+      Nothing -> Null
       Just v  -> v
 
     -- | Encode Aeson Value to JSON text.

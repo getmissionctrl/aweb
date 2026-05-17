@@ -14,7 +14,7 @@ import base58
 import httpx
 from nacl.signing import SigningKey
 
-BASE_URL = "http://localhost:9099"
+BASE_URL = "http://localhost:12007"
 
 
 def generate_identity():

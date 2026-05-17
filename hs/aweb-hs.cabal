@@ -73,6 +73,7 @@ library
     http-client-tls,
     http-types,
     memory,
+    natskell,
     optparse-applicative >= 0.18,
     rel8 >= 1.5,
     servant-server,
