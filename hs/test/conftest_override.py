@@ -15,4 +15,4 @@ import pytest
 @pytest.fixture
 def base_url():
     """Override base URL to target the Haskell server."""
-    return os.environ.get("AWEB_TEST_URL", "http://localhost:8080")
+    return os.environ.get("AWEB_TEST_URL", "http://localhost:12007")

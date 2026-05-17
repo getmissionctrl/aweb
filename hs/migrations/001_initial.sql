@@ -1,0 +1,345 @@
+-- 001_initial.sql
+-- Consolidated aweb schema: teams, agents, and all coordination tables.
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- ---------------------------------------------------------------------------
+-- Teams
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS teams (
+    team_id    TEXT PRIMARY KEY,
+    namespace       TEXT NOT NULL,
+    team_name       TEXT NOT NULL,
+    team_did_key    TEXT NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ---------------------------------------------------------------------------
+-- Agents
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS agents (
+    agent_id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    team_id    TEXT NOT NULL REFERENCES teams(team_id),
+    did_key         TEXT NOT NULL,
+    did_aw          TEXT,
+    address         TEXT,
+    alias           TEXT NOT NULL,
+    lifetime        TEXT NOT NULL DEFAULT 'ephemeral'
+                    CHECK (lifetime IN ('persistent', 'ephemeral')),
+    human_name      TEXT NOT NULL DEFAULT '',
+    agent_type      TEXT NOT NULL DEFAULT 'agent',
+    role            TEXT NOT NULL DEFAULT '',
+    messaging_policy TEXT NOT NULL DEFAULT 'everyone'
+                    CHECK (messaging_policy IN ('everyone', 'contacts', 'team', 'org', 'nobody')),
+    status          TEXT NOT NULL DEFAULT 'active'
+                    CHECK (status IN ('active', 'retired', 'archived', 'deleted')),
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at      TIMESTAMPTZ
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_agents_active_alias
+    ON agents (team_id, alias)
+    WHERE deleted_at IS NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_agents_active_did_key
+    ON agents (team_id, did_key)
+    WHERE deleted_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_agents_did_aw
+    ON agents (did_aw) WHERE did_aw IS NOT NULL AND deleted_at IS NULL;
+
+-- ---------------------------------------------------------------------------
+-- Messages (async mail)
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS messages (
+    message_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    from_did        TEXT NOT NULL,
+    to_did          TEXT NOT NULL,
+    from_alias      TEXT NOT NULL DEFAULT '',
+    from_address    TEXT,
+    to_alias        TEXT NOT NULL DEFAULT '',
+    subject         TEXT NOT NULL DEFAULT '',
+    body            TEXT NOT NULL,
+    priority        TEXT NOT NULL DEFAULT 'normal',
+    team_id    TEXT REFERENCES teams(team_id),
+    from_agent_id   UUID REFERENCES agents(agent_id),
+    to_agent_id     UUID REFERENCES agents(agent_id),
+    signature       TEXT,
+    signed_payload  TEXT,
+    read_at         TIMESTAMPTZ,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_messages_inbox
+    ON messages (to_did, created_at)
+    WHERE read_at IS NULL;
+
+-- ---------------------------------------------------------------------------
+-- Chat
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS chat_sessions (
+    session_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    team_id    TEXT REFERENCES teams(team_id),
+    created_by      TEXT NOT NULL,
+    wait_seconds    INTEGER,
+    wait_started_at TIMESTAMPTZ,
+    wait_started_by UUID,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS chat_participants (
+    session_id      UUID NOT NULL REFERENCES chat_sessions(session_id),
+    did             TEXT NOT NULL,
+    agent_id        UUID REFERENCES agents(agent_id),
+    alias           TEXT NOT NULL,
+    address         TEXT,
+    joined_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (session_id, did)
+);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+    message_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id      UUID NOT NULL REFERENCES chat_sessions(session_id),
+    from_agent_id   UUID REFERENCES agents(agent_id),
+    from_did        TEXT NOT NULL,
+    from_alias      TEXT NOT NULL,
+    from_address    TEXT,
+    body            TEXT NOT NULL,
+    reply_to        UUID,
+    sender_leaving  BOOLEAN NOT NULL DEFAULT FALSE,
+    hang_on         BOOLEAN NOT NULL DEFAULT FALSE,
+    signature       TEXT,
+    signed_payload  TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_messages_session
+    ON chat_messages (session_id, created_at);
+
+CREATE TABLE IF NOT EXISTS chat_read_receipts (
+    session_id      UUID NOT NULL REFERENCES chat_sessions(session_id),
+    did             TEXT NOT NULL,
+    agent_id        UUID REFERENCES agents(agent_id),
+    last_read_message_id UUID REFERENCES chat_messages(message_id),
+    last_read_at    TIMESTAMPTZ,
+    PRIMARY KEY (session_id, did)
+);
+
+-- ---------------------------------------------------------------------------
+-- Contacts
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS contacts (
+    contact_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_did       TEXT NOT NULL,
+    contact_address TEXT NOT NULL,
+    label           TEXT NOT NULL DEFAULT '',
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    UNIQUE (owner_did, contact_address)
+);
+
+-- ---------------------------------------------------------------------------
+-- Control signals
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS control_signals (
+    signal_id       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    team_id    TEXT NOT NULL REFERENCES teams(team_id),
+    target_agent_id UUID NOT NULL REFERENCES agents(agent_id),
+    from_agent_id   UUID NOT NULL REFERENCES agents(agent_id),
+    signal_type     TEXT NOT NULL
+                    CHECK (signal_type IN ('pause', 'resume', 'interrupt')),
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    consumed_at     TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_control_signals_pending
+    ON control_signals (team_id, target_agent_id, created_at)
+    WHERE consumed_at IS NULL;
+
+-- ---------------------------------------------------------------------------
+-- Repos
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS repos (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    team_id    TEXT NOT NULL,
+    origin_url      TEXT NOT NULL,
+    canonical_origin TEXT NOT NULL,
+    name            TEXT NOT NULL DEFAULT '',
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at      TIMESTAMPTZ,
+
+    UNIQUE (team_id, canonical_origin)
+);
+
+-- ---------------------------------------------------------------------------
+-- Workspaces
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS workspaces (
+    workspace_id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    team_id    TEXT NOT NULL,
+    agent_id        UUID NOT NULL,
+    repo_id         UUID REFERENCES repos(id),
+    alias           TEXT NOT NULL,
+    human_name      TEXT NOT NULL DEFAULT '',
+    role            TEXT,
+    hostname        TEXT,
+    workspace_path  TEXT,
+    workspace_type  TEXT NOT NULL DEFAULT 'manual',
+    focus_task_ref  TEXT,
+    focus_updated_at TIMESTAMPTZ,
+    last_seen_at    TIMESTAMPTZ,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ,
+    deleted_at      TIMESTAMPTZ
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_workspaces_active_alias
+    ON workspaces (team_id, alias)
+    WHERE deleted_at IS NULL;
+
+-- ---------------------------------------------------------------------------
+-- Tasks
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS tasks (
+    task_id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    team_id    TEXT NOT NULL,
+    task_number     INTEGER NOT NULL,
+    root_task_seq   INTEGER,
+    task_ref_suffix TEXT NOT NULL,
+    title           TEXT NOT NULL,
+    description     TEXT NOT NULL DEFAULT '',
+    notes           TEXT NOT NULL DEFAULT '',
+    status          TEXT NOT NULL DEFAULT 'open'
+                    CHECK (status IN ('open', 'in_progress', 'closed')),
+    priority        INTEGER NOT NULL DEFAULT 2
+                    CHECK (priority BETWEEN 0 AND 4),
+    task_type       TEXT NOT NULL DEFAULT 'task'
+                    CHECK (task_type IN ('task', 'bug', 'feature', 'epic', 'chore')),
+    assignee_alias  TEXT,
+    created_by_alias TEXT,
+    closed_by_alias TEXT,
+    labels          TEXT[] NOT NULL DEFAULT '{}',
+    parent_task_id  UUID REFERENCES tasks(task_id),
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ,
+    closed_at       TIMESTAMPTZ,
+    deleted_at      TIMESTAMPTZ,
+
+    UNIQUE (team_id, task_number),
+    UNIQUE (team_id, task_ref_suffix)
+);
+
+CREATE TABLE IF NOT EXISTS task_comments (
+    comment_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    task_id         UUID NOT NULL REFERENCES tasks(task_id),
+    team_id    TEXT NOT NULL,
+    author_alias    TEXT NOT NULL,
+    body            TEXT NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS task_dependencies (
+    task_id         UUID NOT NULL REFERENCES tasks(task_id),
+    depends_on_id   UUID NOT NULL REFERENCES tasks(task_id),
+    team_id    TEXT NOT NULL,
+    PRIMARY KEY (task_id, depends_on_id)
+);
+
+CREATE TABLE IF NOT EXISTS task_counters (
+    team_id    TEXT PRIMARY KEY,
+    next_number     INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS task_root_counters (
+    team_id    TEXT PRIMARY KEY,
+    next_number     INTEGER NOT NULL DEFAULT 1
+);
+
+-- ---------------------------------------------------------------------------
+-- Task claims
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS task_claims (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    team_id    TEXT NOT NULL,
+    workspace_id    UUID NOT NULL,
+    alias           TEXT NOT NULL,
+    human_name      TEXT NOT NULL DEFAULT '',
+    task_ref        TEXT NOT NULL,
+    apex_task_ref   TEXT,
+    claimed_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    UNIQUE (team_id, task_ref, workspace_id)
+);
+
+-- ---------------------------------------------------------------------------
+-- Reservations (resource locks)
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS reservations (
+    team_id    TEXT NOT NULL,
+    resource_key    TEXT NOT NULL,
+    holder_alias    TEXT NOT NULL,
+    holder_agent_id UUID NOT NULL,
+    acquired_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at      TIMESTAMPTZ,
+    metadata_json   JSONB,
+
+    PRIMARY KEY (team_id, resource_key)
+);
+
+-- ---------------------------------------------------------------------------
+-- Roles (versioned per team)
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS team_roles (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    team_id    TEXT NOT NULL,
+    version         INTEGER NOT NULL DEFAULT 1,
+    bundle_json     JSONB NOT NULL DEFAULT '[]',
+    is_active       BOOLEAN NOT NULL DEFAULT FALSE,
+    created_by_alias TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ,
+
+    UNIQUE (team_id, version)
+);
+
+-- ---------------------------------------------------------------------------
+-- Instructions (versioned per team)
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS team_instructions (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    team_id    TEXT NOT NULL,
+    version         INTEGER NOT NULL DEFAULT 1,
+    document_json   JSONB NOT NULL DEFAULT '{}',
+    is_active       BOOLEAN NOT NULL DEFAULT FALSE,
+    created_by_alias TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ,
+
+    UNIQUE (team_id, version)
+);
+
+-- ---------------------------------------------------------------------------
+-- Audit log
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS audit_log (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    team_id    TEXT NOT NULL,
+    alias           TEXT,
+    event_type      TEXT NOT NULL,
+    resource        TEXT,
+    details         JSONB,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

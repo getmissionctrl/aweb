@@ -9,14 +9,14 @@ processes:
       if [ ! -d "$PGDATA" ]; then
         echo "Initializing PostgreSQL data directory..."
         initdb -D "$PGDATA" --auth=trust --no-locale --encoding=UTF8
-        echo "port = 5433" >> "$PGDATA/postgresql.conf"
+        echo "port = 12001" >> "$PGDATA/postgresql.conf"
         echo "unix_socket_directories = '$(pwd)/.data'" >> "$PGDATA/postgresql.conf"
         echo "listen_addresses = '127.0.0.1'" >> "$PGDATA/postgresql.conf"
       fi
       exec postgres -D "$PGDATA"
     readiness_probe:
       exec:
-        command: pg_isready -h 127.0.0.1 -p 5433
+        command: pg_isready -h 127.0.0.1 -p 12001
       initial_delay_seconds: 2
       period_seconds: 2
     shutdown:
@@ -26,10 +26,10 @@ processes:
   redis:
     command: |
       mkdir -p .data/redis
-      exec redis-server --port 6380 --dir .data/redis --daemonize no
+      exec redis-server --port 12002 --dir .data/redis --daemonize no
     readiness_probe:
       exec:
-        command: redis-cli -p 6380 ping
+        command: redis-cli -p 12002 ping
       initial_delay_seconds: 1
       period_seconds: 2
     shutdown:
@@ -38,19 +38,19 @@ processes:
 
   db-init:
     command: |
-      until pg_isready -h 127.0.0.1 -p 5433; do sleep 0.5; done
+      until pg_isready -h 127.0.0.1 -p 12001; do sleep 0.5; done
 
       # Create user and database if needed
-      psql -h 127.0.0.1 -p 5433 -U $(whoami) -tc "SELECT 1 FROM pg_roles WHERE rolname='aweb'" postgres \
+      psql -h 127.0.0.1 -p 12001 -U $(whoami) -tc "SELECT 1 FROM pg_roles WHERE rolname='aweb'" postgres \
         | grep -q 1 \
-        || psql -h 127.0.0.1 -p 5433 -U $(whoami) -c "CREATE USER aweb WITH PASSWORD 'aweb';" postgres
+        || psql -h 127.0.0.1 -p 12001 -U $(whoami) -c "CREATE USER aweb WITH PASSWORD 'aweb';" postgres
 
-      psql -h 127.0.0.1 -p 5433 -U $(whoami) -tc "SELECT 1 FROM pg_database WHERE datname='aweb'" postgres \
+      psql -h 127.0.0.1 -p 12001 -U $(whoami) -tc "SELECT 1 FROM pg_database WHERE datname='aweb'" postgres \
         | grep -q 1 \
-        || psql -h 127.0.0.1 -p 5433 -U $(whoami) -c "CREATE DATABASE aweb OWNER aweb;" postgres
+        || psql -h 127.0.0.1 -p 12001 -U $(whoami) -c "CREATE DATABASE aweb OWNER aweb;" postgres
 
       # Create awid schema
-      PGPASSWORD=aweb psql -h 127.0.0.1 -p 5433 -U aweb -d aweb -c "CREATE SCHEMA IF NOT EXISTS awid;"
+      PGPASSWORD=aweb psql -h 127.0.0.1 -p 12001 -U aweb -d aweb -c "CREATE SCHEMA IF NOT EXISTS awid;"
 
       echo "Database ready."
     depends_on:
@@ -62,23 +62,23 @@ processes:
   awid:
     command: |
       cd awid
-      exec uv run uvicorn awid_service.main:app --host 127.0.0.1 --port 8010 --reload
+      exec uv run uvicorn awid_service.main:app --host 127.0.0.1 --port 12005 --reload
     depends_on:
       db-init:
         condition: process_completed_successfully
       redis:
         condition: process_healthy
     environment:
-      - "AWID_DATABASE_URL=postgresql://aweb:aweb@127.0.0.1:5433/aweb"
-      - "AWID_REDIS_URL=redis://127.0.0.1:6380/0"
+      - "AWID_DATABASE_URL=postgresql://aweb:aweb@127.0.0.1:12001/aweb"
+      - "AWID_REDIS_URL=redis://127.0.0.1:12002/0"
       - "AWID_HOST=127.0.0.1"
-      - "AWID_PORT=8010"
+      - "AWID_PORT=12005"
       - "AWID_DB_SCHEMA=awid"
       - "AWID_RATE_LIMIT_DISABLED=true"
     readiness_probe:
       http_get:
         host: 127.0.0.1
-        port: 8010
+        port: 12005
         path: /health
       initial_delay_seconds: 3
       period_seconds: 5
@@ -89,23 +89,23 @@ processes:
   aweb:
     command: |
       cd server
-      exec uv run uvicorn aweb.main:app --host 127.0.0.1 --port 8000 --reload
+      exec uv run uvicorn aweb.main:app --host 127.0.0.1 --port 12006 --reload
     depends_on:
       awid:
         condition: process_healthy
       redis:
         condition: process_healthy
     environment:
-      - "AWEB_DATABASE_URL=postgresql://aweb:aweb@127.0.0.1:5433/aweb"
-      - "AWEB_REDIS_URL=redis://127.0.0.1:6380/0"
+      - "AWEB_DATABASE_URL=postgresql://aweb:aweb@127.0.0.1:12001/aweb"
+      - "AWEB_REDIS_URL=redis://127.0.0.1:12002/0"
       - "AWEB_HOST=127.0.0.1"
-      - "AWEB_PORT=8000"
-      - "AWID_REGISTRY_URL=http://127.0.0.1:8010"
+      - "AWEB_PORT=12006"
+      - "AWID_REGISTRY_URL=http://127.0.0.1:12005"
       - "APP_ENV=development"
     readiness_probe:
       http_get:
         host: 127.0.0.1
-        port: 8000
+        port: 12006
         path: /health
       initial_delay_seconds: 5
       period_seconds: 5
@@ -119,7 +119,7 @@ processes:
       exec nats-server -c dev/nats-server.conf
     readiness_probe:
       exec:
-        command: "curl -sf http://127.0.0.1:8222/healthz || exit 1"
+        command: "curl -sf http://127.0.0.1:12004/healthz || exit 1"
       initial_delay_seconds: 1
       period_seconds: 2
     shutdown:
@@ -128,10 +128,10 @@ processes:
 
   aweb-hs:
     command: |
-      exec result/bin/aweb-hs --port 8080 \
-        --database-url "postgresql://aweb:aweb@127.0.0.1:5433/aweb" \
-        --nats-url "nats://127.0.0.1:4222" \
-        --awid-url "http://127.0.0.1:8010"
+      exec result/bin/aweb-hs --port 12007 \
+        --database-url "postgresql://aweb:aweb@127.0.0.1:12001/aweb" \
+        --nats-url "nats://127.0.0.1:12003" \
+        --awid-url "http://127.0.0.1:12005"
     depends_on:
       db-init:
         condition: process_completed_successfully
@@ -142,7 +142,7 @@ processes:
     readiness_probe:
       http_get:
         host: 127.0.0.1
-        port: 8080
+        port: 12007
         path: /health
       initial_delay_seconds: 2
       period_seconds: 5

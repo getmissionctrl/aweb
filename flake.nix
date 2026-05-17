@@ -13,9 +13,14 @@
       url = "github:microvm-nix/microvm.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    natskell = {
+      url = "path:/home/ben/dev/natskell";
+      flake = false;
+    };
   };
 
-  outputs = { self, nixpkgs, devshell, microvm, ... }:
+  outputs = { self, nixpkgs, devshell, microvm, natskell, ... }:
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs {
@@ -24,11 +29,21 @@
       };
 
       # Haskell
+      natskellPkg' = hsPkgs: hsPkgs.callCabal2nix "natskell" natskell {
+        cryptonite = hsPkgs.crypton;
+      };
       hsPkgs = pkgs.haskell.packages.ghc910.override {
         overrides = hself: hsuper: {
           hasql-pool = pkgs.haskell.lib.dontCheck hsuper.hasql-pool;
           hasql-transaction = pkgs.haskell.lib.dontCheck hsuper.hasql-transaction;
           rel8 = pkgs.haskell.lib.dontCheck hsuper.rel8;
+          # natskell depends on cryptonite; aweb-hs uses crypton (same API, drop-in)
+          natskell = pkgs.haskell.lib.dontCheck (pkgs.haskell.lib.doJailbreak
+            (pkgs.haskell.lib.overrideCabal (natskellPkg' hself) (drv: {
+              postPatch = (drv.postPatch or "") + ''
+                substituteInPlace natskell.cabal --replace-fail "cryptonite" "crypton"
+              '';
+            })));
         };
       };
       awebHsPkg = hsPkgs.callCabal2nix "aweb-hs" ./hs {};
@@ -246,11 +261,11 @@
         env = [
           {
             name = "AWEB_DATABASE_URL";
-            value = "postgresql://aweb:aweb@localhost:5433/aweb";
+            value = "postgresql://aweb:aweb@localhost:12001/aweb";
           }
           {
             name = "AWID_DATABASE_URL";
-            value = "postgresql://aweb:aweb@localhost:5433/aweb";
+            value = "postgresql://aweb:aweb@localhost:12001/aweb";
           }
           {
             name = "AWID_DB_SCHEMA";
@@ -258,7 +273,7 @@
           }
           {
             name = "AWID_REGISTRY_URL";
-            value = "http://127.0.0.1:8010";
+            value = "http://127.0.0.1:12005";
           }
           {
             name = "APP_ENV";
@@ -266,15 +281,19 @@
           }
           {
             name = "AWEB_REDIS_URL";
-            value = "redis://localhost:6380";
+            value = "redis://localhost:12002";
           }
           {
             name = "AWID_REDIS_URL";
-            value = "redis://localhost:6380";
+            value = "redis://localhost:12002";
           }
           {
             name = "PGPORT";
-            value = "5433";
+            value = "12001";
+          }
+          {
+            name = "AWEB_NATS_URL";
+            value = "nats://localhost:12003";
           }
         ];
 
@@ -283,7 +302,7 @@
             category = "development";
             name = "devrun";
             help = "Start all dev services (postgres, redis, server, awid)";
-            command = ''cd "$PRJ_ROOT" && process-compose up -f dev/process-compose.yaml -p 9900'';
+            command = ''cd "$PRJ_ROOT" && process-compose up -f dev/process-compose.yaml -p 12008'';
           }
           {
             category = "development";

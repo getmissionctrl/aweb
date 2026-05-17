@@ -6,7 +6,7 @@ import Aweb.API (API, HealthStatus (..), ProtectedAPI, ConnectAPI)
 import Aweb.API.Types (ConnectResponse (..))
 import Aweb.Auth.Middleware (AuthIdentity (..), authHandler)
 import Aweb.Config (Config (..))
-import Aweb.DB (Pool, withPool)
+import Aweb.DB (Pool, withPool, runMigrations)
 import Aweb.Handlers.Agents (agentsServer)
 import Aweb.Handlers.Claims (claimsServer)
 import Aweb.Handlers.Conversations (conversationsServer)
@@ -18,6 +18,11 @@ import Aweb.Handlers.Reservations (reservationsServer)
 import Aweb.Handlers.Roles (rolesServer)
 import Aweb.Handlers.Tasks (tasksServer)
 import Aweb.Handlers.Workspaces (workspacesServer)
+import Aweb.Nats (NatsEnv, connectNats, disconnectNats)
+import Aweb.Nats.Presence (PresenceTracker, newPresenceTracker)
+import Aweb.Nats.Subscriber qualified as Sub
+import Control.Exception (bracket)
+import Data.UUID qualified
 import Network.Wai (Request)
 import Network.Wai.Handler.Warp qualified as Warp
 import Servant
@@ -25,23 +30,35 @@ import Servant.Server.Experimental.Auth (AuthHandler)
 
 runServer :: Config -> IO ()
 runServer cfg = withPool cfg.databaseUrl $ \pool -> do
-  putStrLn $ "aweb-hs listening on port " <> show cfg.httpPort
-  Warp.run cfg.httpPort (app pool)
+  runMigrations pool ["hs/migrations/001_initial.sql"]
+  tracker <- newPresenceTracker
+  bracket (connectNats cfg) cleanupNats $ \mNats -> do
+    case mNats of
+      Nothing -> putStrLn "NATS: running without NATS (HTTP only)"
+      Just nats -> do
+        _subs <- Sub.startSubscribers nats tracker
+        pure ()
+    putStrLn $ "aweb-hs listening on port " <> show cfg.httpPort
+    Warp.run cfg.httpPort (app pool mNats cfg)
+  where
+    cleanupNats mNats = do
+      disconnectNats mNats
+      putStrLn "NATS: disconnected"
 
-app :: Pool -> Application
-app pool = serveWithContext (Proxy @API) ctx (server pool)
+app :: Pool -> Maybe NatsEnv -> Config -> Application
+app pool _mNats _cfg = serveWithContext (Proxy @API) ctx (server pool _mNats _cfg)
   where
     ctx :: Context '[AuthHandler Request AuthIdentity]
     ctx = authHandler :. EmptyContext
 
-server :: Pool -> Server API
-server pool = healthServer :<|> protectedServer pool
+server :: Pool -> Maybe NatsEnv -> Config -> Server API
+server pool mNats cfg = healthServer :<|> protectedServer pool mNats cfg
 
 healthServer :: Server ("health" :> Get '[JSON] HealthStatus)
 healthServer = pure HealthStatus { status = "ok", version = "0.1.0" }
 
-protectedServer :: Pool -> AuthIdentity -> Server ProtectedAPI
-protectedServer pool identity =
+protectedServer :: Pool -> Maybe NatsEnv -> Config -> AuthIdentity -> Server ProtectedAPI
+protectedServer pool _mNats cfg identity =
        agentsServer pool identity
   :<|> tasksServer pool identity
   :<|> workspacesServer pool identity
@@ -53,14 +70,14 @@ protectedServer pool identity =
   :<|> reposServer pool identity
   :<|> claimsServer pool identity
   :<|> dashboardServer pool identity
-  :<|> connectServer pool identity
+  :<|> connectServer cfg identity
 
-connectServer :: Pool -> AuthIdentity -> Server ConnectAPI
-connectServer _pool identity = pure ConnectResponse
-  { agentId    = error "TODO: lookup agent"
+connectServer :: Config -> AuthIdentity -> Server ConnectAPI
+connectServer cfg identity = pure ConnectResponse
+  { agentId    = Data.UUID.nil
   , alias      = ""
   , teamId     = ""
   , didKey     = identity.didKey
   , didAw      = Just identity.didAw
-  , natsUrl    = Nothing
+  , natsUrl    = Just cfg.natsUrl
   }
