@@ -3,7 +3,8 @@ module Aweb.Auth.Middleware
   , authHandler
   ) where
 
-import Aweb.Auth.DID (computeStableId, parseDIDKey)
+import Aweb.Auth.DID (computeDIDKey, computeStableId, parseDIDKey)
+import Aweb.Auth.Registry (KeyResolution (..), resolveKey)
 import Aweb.Auth.Signing (canonicalJSON, verifyRequestSignature)
 import Control.Monad.IO.Class (liftIO)
 import Crypto.Hash (SHA256, Digest, hash)
@@ -19,6 +20,7 @@ import Data.Text.Encoding qualified as TE
 import Data.Time.Clock (getCurrentTime, diffUTCTime, UTCTime)
 import Data.Time.Format (parseTimeM, defaultTimeLocale)
 import Data.Word (Word8)
+import Network.HTTP.Client (Manager)
 import Network.HTTP.Types (hAuthorization)
 import Network.Wai (Request, getRequestBodyChunk, requestHeaders)
 import Servant (Handler, err401, errBody, throwError)
@@ -36,9 +38,10 @@ data AuthIdentity = AuthIdentity
 maxClockSkewSeconds :: Double
 maxClockSkewSeconds = 300
 
--- | Create a Servant auth handler that verifies DIDKey signatures.
-authHandler :: AuthHandler Request AuthIdentity
-authHandler = mkAuthHandler handler
+-- | Create a Servant auth handler that verifies DIDKey signatures
+-- and optionally resolves identity via the awid registry.
+authHandler :: Manager -> Text -> AuthHandler Request AuthIdentity
+authHandler registryManager registryUrl = mkAuthHandler handler
   where
     handler :: Request -> Handler AuthIdentity
     handler req = do
@@ -91,13 +94,29 @@ authHandler = mkAuthHandler handler
         Right s -> pure s
 
       -- Verify the Ed25519 signature
-      if verifyRequestSignature pubKey sigBytes payload
-        then pure AuthIdentity
-          { didKey  = didKeyText
-          , didAw   = stableId
-          , address = lookupAddress req
-          }
-        else throwError err401 { errBody = "Signature verification failed" }
+      if not (verifyRequestSignature pubKey sigBytes payload)
+        then throwError err401 { errBody = "Signature verification failed" }
+        else pure ()
+
+      -- Resolve identity via registry: check the presented did:key is
+      -- still the current key for this did:aw (detects key rotation).
+      -- If the registry is unavailable we allow the request through —
+      -- the signature is valid regardless.
+      liftIO (resolveKey registryManager registryUrl stableId) >>= \case
+        Just kr
+          | kr.currentDIDKey /= didKeyText ->
+              throwError err401
+                { errBody = LBS.fromStrict $ TE.encodeUtf8 $
+                    "Key rotated: presented " <> didKeyText
+                    <> " but registry says current key is " <> kr.currentDIDKey
+                }
+        _ -> pure () -- registry unavailable or key matches — allow
+
+      pure AuthIdentity
+        { didKey  = didKeyText
+        , didAw   = stableId
+        , address = lookupAddress req
+        }
 
 -- | Parse "DIDKey <did:key:z...> <signature>" from the Authorization header.
 parseDIDKeyAuth :: Text -> Maybe (Text, Text)

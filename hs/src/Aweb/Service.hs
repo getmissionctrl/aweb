@@ -5,6 +5,7 @@ module Aweb.Service
 import Aweb.API (API, HealthStatus (..), ProtectedAPI, ConnectAPI)
 import Aweb.API.Types (ConnectResponse (..))
 import Aweb.Auth.Middleware (AuthIdentity (..), authHandler)
+import Aweb.Auth.Registry (newRegistryManager)
 import Aweb.Config (Config (..))
 import Aweb.DB (Pool, withPool, runMigrations)
 import Aweb.Handlers.Agents (agentsServer)
@@ -23,6 +24,7 @@ import Aweb.Nats.Presence (PresenceTracker, newPresenceTracker)
 import Aweb.Nats.Subscriber qualified as Sub
 import Control.Exception (bracket)
 import Data.UUID qualified
+import Network.HTTP.Client (Manager)
 import Network.Wai (Request)
 import Network.Wai.Handler.Warp qualified as Warp
 import Servant
@@ -31,6 +33,7 @@ import Servant.Server.Experimental.Auth (AuthHandler)
 runServer :: Config -> IO ()
 runServer cfg = withPool cfg.databaseUrl $ \pool -> do
   runMigrations pool ["hs/migrations/001_initial.sql"]
+  registryMgr <- newRegistryManager
   tracker <- newPresenceTracker
   bracket (connectNats cfg) cleanupNats $ \mNats -> do
     case mNats of
@@ -39,17 +42,17 @@ runServer cfg = withPool cfg.databaseUrl $ \pool -> do
         _subs <- Sub.startSubscribers nats tracker
         pure ()
     putStrLn $ "aweb-hs listening on port " <> show cfg.httpPort
-    Warp.run cfg.httpPort (app pool mNats cfg)
+    Warp.run cfg.httpPort (app pool mNats cfg registryMgr)
   where
     cleanupNats mNats = do
       disconnectNats mNats
       putStrLn "NATS: disconnected"
 
-app :: Pool -> Maybe NatsEnv -> Config -> Application
-app pool _mNats _cfg = serveWithContext (Proxy @API) ctx (server pool _mNats _cfg)
+app :: Pool -> Maybe NatsEnv -> Config -> Manager -> Application
+app pool _mNats cfg mgr = serveWithContext (Proxy @API) ctx (server pool _mNats cfg)
   where
     ctx :: Context '[AuthHandler Request AuthIdentity]
-    ctx = authHandler :. EmptyContext
+    ctx = authHandler mgr cfg.awidUrl :. EmptyContext
 
 server :: Pool -> Maybe NatsEnv -> Config -> Server API
 server pool mNats cfg = healthServer :<|> protectedServer pool mNats cfg
