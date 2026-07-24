@@ -131,19 +131,42 @@
         phases = [ "installPhase" ];
         installPhase = ''
           mkdir -p $out/skills
-          cp -r $src/cli/go/skills/aweb $out/skills/
-          cp -r $src/cli/go/skills/aweb-messaging $out/skills/
+          cp -r $src/skills/. $out/skills/
           cp -r $src/channel/skills/configure $out/skills/
         '';
         meta.description = "aweb agent coordination skills";
       };
 
-      # TypeScript channel (MCP plugin)
+      # TypeScript channel (MCP plugin).
+      # Upstream split shared logic into a sibling workspace package,
+      # @awebai/channel-core, referenced by channel via `file:../channel-core`.
+      # Build it from source (its committed dist/ is stale) so channel's bundler
+      # sees a complete dist/ plus channel-core's own runtime deps.
+      channelCorePkg = pkgs.buildNpmPackage {
+        pname = "channel-core";
+        version = "0.1.0";
+        src = ./channel-core;
+        npmDepsHash = "sha256-vqPfT981W1M4kRhZlvQef25rTju+NOld+C5UKpYnWwA=";
+        installPhase = ''
+          mkdir -p $out
+          cp -r dist package.json node_modules $out/
+        '';
+        meta.description = "Shared aweb channel core";
+      };
+
+      # TypeScript channel (MCP plugin). channel imports @awebai/channel-core via
+      # `file:../channel-core`; buildNpmPackage builds ./channel in isolation, so
+      # stage the built core beside the source before `npm ci` links it. esbuild
+      # bundles channel-core from its real path, resolving its bundled node_modules.
       channelPkg = pkgs.buildNpmPackage {
         pname = "claude-channel";
-        version = "1.4.0";
+        version = "1.5.2";
         src = ./channel;
-        npmDepsHash = "sha256-OJZnDmy4j6V7CCeztsQh1bwGKK7HG9+ndZd251qhxKg=";
+        npmDepsHash = "sha256-ytpE+VdrY2sEkc5PMA0LsypEuofMEtXjRynSOt4HR8M=";
+        postPatch = ''
+          cp -r ${channelCorePkg} ../channel-core
+          chmod -R u+w ../channel-core
+        '';
         buildPhase = ''
           npm run build
         '';
@@ -207,7 +230,7 @@
           node ${channelPkg}/lib/node_modules/@awebai/claude-channel/dist/index.js --help > $out 2>&1 || touch $out
         '';
         skills-exist = pkgs.runCommand "skills-exist" {} ''
-          test -f ${skillsPkg}/skills/aweb/SKILL.md
+          test -f ${skillsPkg}/skills/aweb-coordination/SKILL.md
           test -f ${skillsPkg}/skills/aweb-messaging/SKILL.md
           test -f ${skillsPkg}/skills/configure/SKILL.md
           echo "ok" > $out
