@@ -247,6 +247,20 @@
           ]).config.systemd.units."aweb.service".unit}" > /dev/null
           echo "ok" > $out
         '';
+        # AWEB_PUBLIC_ORIGIN wiring: option sets the env var
+        publicorigin-eval = pkgs.runCommand "publicorigin-eval" {} ''
+          origin="${(pkgs.nixos [
+            self.nixosModules.default
+            {
+              services.aweb.enable = true;
+              services.aweb.server.databaseUrl = "postgresql://x@localhost/x";
+              services.aweb.awid.databaseUrl = "postgresql://x@localhost/x";
+              services.aweb.server.publicOrigin = "https://aweb.example.com";
+            }
+          ]).config.systemd.services.aweb.environment.AWEB_PUBLIC_ORIGIN}"
+          test "$origin" = "https://aweb.example.com"
+          echo "ok" > $out
+        '';
       };
 
       devShells.${system}.default = pkgs.devshell.mkShell {

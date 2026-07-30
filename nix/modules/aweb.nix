@@ -44,6 +44,18 @@ in
         default = null;
         description = "Path to an environment file with secrets (e.g. JWT keys).";
       };
+
+      publicOrigin = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "https://aweb.example.com";
+        description = ''
+          Public origin other aweb servers use for federated mail/chat delivery.
+          Origin only (scheme://host[:port]); no path. Sets AWEB_PUBLIC_ORIGIN.
+          Must equal the namespace default delivery origin registered in awid,
+          or inbound federation fails closed.
+        '';
+      };
     };
 
     awid = {
@@ -131,6 +143,8 @@ in
         AWEB_PORT = toString cfg.server.port;
         AWID_REGISTRY_URL = "http://127.0.0.1:${toString cfg.awid.port}";
         AWEB_LOG_JSON = "true";
+      } // lib.optionalAttrs (cfg.server.publicOrigin != null) {
+        AWEB_PUBLIC_ORIGIN = cfg.server.publicOrigin;
       };
 
       serviceConfig = {
