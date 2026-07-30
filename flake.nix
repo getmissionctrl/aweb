@@ -210,9 +210,17 @@
         services.aweb.awid.package = lib.mkDefault awidPkg;
       };
 
-      nixosModules.microvm = { lib, ... }: {
+      nixosModules.microvm = { config, lib, ... }: {
         imports = [ ./nix/modules/microvm-host.nix ];
-        services.aweb-vm.package = lib.mkDefault microvmConfig.config.microvm.declaredRunner;
+        services.aweb-vm.package = lib.mkDefault (nixpkgs.lib.nixosSystem {
+          inherit system;
+          modules = [
+            microvm.nixosModules.microvm
+            self.nixosModules.default
+            ./nix/modules/microvm.nix
+            { services.aweb.server.publicOrigin = config.services.aweb-vm.publicOrigin; }
+          ];
+        }).config.microvm.declaredRunner;
       };
 
       checks.${system} = {
