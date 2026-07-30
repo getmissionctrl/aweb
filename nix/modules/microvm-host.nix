@@ -42,6 +42,16 @@ in
       default = "/var/lib/aweb-vm";
       description = "Directory for microVM state and persistent volumes.";
     };
+
+    publicOrigin = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      example = "https://aweb.example.com";
+      description = ''
+        Public federation origin, forwarded into the guest microVM's
+        services.aweb.server.publicOrigin (sets AWEB_PUBLIC_ORIGIN in the VM).
+      '';
+    };
   };
 
   config = lib.mkIf cfg.enable {
