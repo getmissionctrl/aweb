@@ -146,7 +146,7 @@
         pname = "channel-core";
         version = "0.1.0";
         src = ./channel-core;
-        npmDepsHash = "sha256-vqPfT981W1M4kRhZlvQef25rTju+NOld+C5UKpYnWwA=";
+        npmDepsHash = "sha256-CTVH1uDTwHY7M+z92cuqyb1JvYemADRkIYdcSC80oIs=";
         installPhase = ''
           mkdir -p $out
           cp -r dist package.json node_modules $out/
@@ -162,13 +162,22 @@
         pname = "claude-channel";
         version = "1.5.2";
         src = ./channel;
-        npmDepsHash = "sha256-ytpE+VdrY2sEkc5PMA0LsypEuofMEtXjRynSOt4HR8M=";
+        npmDepsHash = "sha256-5AYL3Y7Yz9j8k6SpSaUJR7VfOkX5b2KtB1CyFpe4/AA=";
         postPatch = ''
           cp -r ${channelCorePkg} ../channel-core
           chmod -R u+w ../channel-core
         '';
+        # Upstream's `npm run build` prebuild force-rebuilds the sibling
+        # channel-core and runs ../scripts/check-node-build-provenance.mjs, both
+        # of which assume a full monorepo checkout. buildNpmPackage isolates
+        # ./channel, so run the real tsc/esbuild steps directly against the
+        # nix-built channel-core sibling (integrity is already pinned by nix).
         buildPhase = ''
-          npm run build
+          runHook preBuild
+          rm -rf dist
+          npx tsc -p tsconfig.json --noEmit
+          npx esbuild src/index.ts --bundle --platform=node --format=esm --banner:js="import { createRequire as __awebCreateRequire } from 'node:module'; const require = __awebCreateRequire(import.meta.url);" --outfile=dist/index.js
+          runHook postBuild
         '';
         installPhase = ''
           mkdir -p $out/lib/node_modules/@awebai/claude-channel
