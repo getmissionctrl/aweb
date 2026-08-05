@@ -69,6 +69,22 @@ in
           external CLI onboarding / team-registration consumers. Origin only.
         '';
       };
+
+      registryUrl = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "https://api.awid.ai";
+        description = ''
+          Override AWID_REGISTRY_URL (the server's home registry). Defaults to the
+          co-located awid at http://127.0.0.1:<awid.port>. Set to the public
+          default registry https://api.awid.ai to enable per-domain cross-registry
+          resolution: the client only performs `_awid.<domain>` DNS discovery when
+          the home registry equals that default. With api.awid.ai, foreign domains
+          resolve via their DNS-declared registry while this deployment's own
+          domain resolves back to its awid via its explicit `_awid` registry
+          override. Leave null to keep single-registry (local awid) behaviour.
+        '';
+      };
     };
 
     awid = {
@@ -154,7 +170,10 @@ in
         AWEB_REDIS_URL = cfg.server.redisUrl;
         AWEB_HOST = cfg.server.host;
         AWEB_PORT = toString cfg.server.port;
-        AWID_REGISTRY_URL = "http://127.0.0.1:${toString cfg.awid.port}";
+        AWID_REGISTRY_URL =
+          if cfg.server.registryUrl != null
+          then cfg.server.registryUrl
+          else "http://127.0.0.1:${toString cfg.awid.port}";
         AWEB_LOG_JSON = "true";
       } // lib.optionalAttrs (cfg.server.publicOrigin != null) {
         AWEB_PUBLIC_ORIGIN = cfg.server.publicOrigin;

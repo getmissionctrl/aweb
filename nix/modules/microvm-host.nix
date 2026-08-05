@@ -64,6 +64,17 @@ in
         public registry instead of the internal address).
       '';
     };
+
+    registryUrl = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      example = "https://api.awid.ai";
+      description = ''
+        Override the guest's home registry (services.aweb.server.registryUrl →
+        AWID_REGISTRY_URL). Set to https://api.awid.ai to enable per-domain
+        cross-registry resolution. Null keeps the co-located local awid.
+      '';
+    };
   };
 
   config = lib.mkIf cfg.enable {

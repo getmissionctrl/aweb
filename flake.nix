@@ -230,6 +230,7 @@
             {
               services.aweb.server.publicOrigin = config.services.aweb-vm.publicOrigin;
               services.aweb.server.publicRegistryUrl = config.services.aweb-vm.publicRegistryUrl;
+              services.aweb.server.registryUrl = config.services.aweb-vm.registryUrl;
             }
           ];
         }).config.microvm.declaredRunner;
