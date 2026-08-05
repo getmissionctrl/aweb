@@ -227,7 +227,10 @@
             microvm.nixosModules.microvm
             self.nixosModules.default
             ./nix/modules/microvm.nix
-            { services.aweb.server.publicOrigin = config.services.aweb-vm.publicOrigin; }
+            {
+              services.aweb.server.publicOrigin = config.services.aweb-vm.publicOrigin;
+              services.aweb.server.publicRegistryUrl = config.services.aweb-vm.publicRegistryUrl;
+            }
           ];
         }).config.microvm.declaredRunner;
       };

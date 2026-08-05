@@ -52,6 +52,18 @@ in
         services.aweb.server.publicOrigin (sets AWEB_PUBLIC_ORIGIN in the VM).
       '';
     };
+
+    publicRegistryUrl = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      example = "https://awid.example.com";
+      description = ''
+        Publicly routable awid registry origin, forwarded into the guest
+        microVM's services.aweb.server.publicRegistryUrl (sets
+        AWID_PUBLIC_REGISTRY_URL in the VM so the discovery doc advertises the
+        public registry instead of the internal address).
+      '';
+    };
   };
 
   config = lib.mkIf cfg.enable {

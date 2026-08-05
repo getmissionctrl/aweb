@@ -56,6 +56,19 @@ in
           or inbound federation fails closed.
         '';
       };
+
+      publicRegistryUrl = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "https://awid.example.com";
+        description = ''
+          Publicly routable origin of this deployment's awid registry, published
+          in the /api/v1/discovery document (sets AWID_PUBLIC_REGISTRY_URL). The
+          server talks to awid over the internal AWID_REGISTRY_URL; without this
+          the discovery doc would leak that internal address (e.g. 127.0.0.1) to
+          external CLI onboarding / team-registration consumers. Origin only.
+        '';
+      };
     };
 
     awid = {
@@ -145,6 +158,8 @@ in
         AWEB_LOG_JSON = "true";
       } // lib.optionalAttrs (cfg.server.publicOrigin != null) {
         AWEB_PUBLIC_ORIGIN = cfg.server.publicOrigin;
+      } // lib.optionalAttrs (cfg.server.publicRegistryUrl != null) {
+        AWID_PUBLIC_REGISTRY_URL = cfg.server.publicRegistryUrl;
       };
 
       serviceConfig = {
