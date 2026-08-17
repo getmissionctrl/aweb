@@ -44,14 +44,18 @@
     "natskell": {
       "flake": false,
       "locked": {
-        "lastModified": 1777276342,
-        "narHash": "sha256-wpmth7FvF3bPkmttH8FNKYTmpUwYzPkeFJfDDURoVdc=",
-        "path": "/home/ben/dev/natskell",
-        "type": "path"
+        "lastModified": 1782409184,
+        "narHash": "sha256-VSJHpHeHQp2yVpe4FY/zRNjBItnWHPJ2qJyGuGY0YoU=",
+        "owner": "getmissionctrl",
+        "repo": "natskell",
+        "rev": "70141c19c6f0aae1481287cab7076ced968bdc30",
+        "type": "github"
       },
       "original": {
-        "path": "/home/ben/dev/natskell",
-        "type": "path"
+        "owner": "getmissionctrl",
+        "ref": "jetstream",
+        "repo": "natskell",
+        "type": "github"
       }
     },
     "nixpkgs": {

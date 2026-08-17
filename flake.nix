@@ -15,7 +15,7 @@
     };
 
     natskell = {
-      url = "path:/home/ben/dev/natskell";
+      url = "github:getmissionctrl/natskell/jetstream";
       flake = false;
     };
   };
